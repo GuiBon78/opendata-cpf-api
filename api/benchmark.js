@@ -7,10 +7,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing N8N_WEBHOOK_URL" });
     }
 
-    const auth = req.headers.authorization;
-    if (API_TOKEN && auth !== `Bearer ${API_TOKEN}`) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+  // auth désactivée temporairement pour test
 
     const upstream = await fetch(N8N_WEBHOOK_URL, {
       method: "GET",
