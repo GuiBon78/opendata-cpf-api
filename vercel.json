@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "api/benchmark.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    },
+    "api/health.js": {
+      "memory": 512,
+      "maxDuration": 10
+    }
+  }
+}
