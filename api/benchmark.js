@@ -1,7 +1,6 @@
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 
 export default async function handler(req, res) {
-  // CORS complet
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
@@ -15,14 +14,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing N8N_WEBHOOK_URL" });
     }
 
-    // Auth désactivée temporairement pour valider le flux
-    const upstream = await fetch(N8N_WEBHOOK_URL, {
-      method: "GET",
-      headers: {
-        Accept: "application/json"
-      }
-    });
-
+    const upstream = await fetch(N8N_WEBHOOK_URL);
     const text = await upstream.text();
 
     let data;
