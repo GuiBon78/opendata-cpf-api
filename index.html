@@ -3,67 +3,237 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenData CPF API</title>
+    <title>Offres de formation CPF</title>
     <style>
-      :root {
-        color-scheme: light;
-      }
-      body {
-        margin: 0;
-        padding: 2rem;
-        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        background: #f7f7f8;
-        color: #111827;
-      }
-      main {
-        max-width: 760px;
-        margin: 0 auto;
-        background: #ffffff;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        padding: 2rem;
-      }
-      h1 {
-        margin-top: 0;
-      }
-      code {
-        background: #f3f4f6;
-        border-radius: 6px;
-        padding: 0.15rem 0.45rem;
-      }
-      ul {
-        line-height: 1.8;
-      }
-      .ok {
-        display: inline-block;
-        margin-top: 1rem;
-        padding: 0.4rem 0.7rem;
-        border-radius: 999px;
-        font-weight: 600;
-        font-size: 0.875rem;
-        color: #166534;
-        background: #dcfce7;
-      }
+      :root { --bg:#f5f7fb; --card:#fff; --txt:#0f172a; --muted:#64748b; --pri:#1d4ed8; --bd:#e2e8f0; }
+      *{box-sizing:border-box}
+      body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt)}
+      .wrap{max-width:1100px;margin:0 auto;padding:24px}
+      h1{margin:0 0 6px}
+      .sub{color:var(--muted);margin:0 0 20px}
+      .panel{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px}
+      .grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px}
+      input,select,button{height:40px;border:1px solid var(--bd);border-radius:10px;padding:0 12px;font:inherit;background:#fff}
+      button{background:var(--pri);color:#fff;border-color:var(--pri);cursor:pointer;font-weight:600}
+      button:disabled{opacity:.6;cursor:not-allowed}
+      .meta{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0;color:var(--muted);font-size:14px}
+      .list{display:grid;gap:12px}
+      .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px}
+      .title{margin:0 0 8px;font-size:18px}
+      .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+      .chip{font-size:12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;padding:2px 8px;border-radius:999px}
+      .row{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+      .muted{color:var(--muted)}
+      .empty,.error,.loading{padding:18px;border-radius:12px}
+      .empty{background:#f8fafc;border:1px dashed var(--bd);color:var(--muted)}
+      .error{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+      .loading{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a}
+      @media (max-width:860px){.grid{grid-template-columns:1fr 1fr}.grid>*:first-child{grid-column:1/-1}}
     </style>
   </head>
   <body>
-    <main>
-      <h1>OpenData CPF API</h1>
-      <p>Déploiement prêt ✅</p>
-      <p>Cette application expose des endpoints API sur Vercel.</p>
+    <div class="wrap">
+      <h1>Catalogue des offres de formation</h1>
+      <p class="sub">Recherche et filtrage des formations depuis <code>/api/benchmark</code>.</p>
 
-      <h2>Endpoints disponibles</h2>
-      <ul>
-        <li><code>GET /api/health</code> — état du service</li>
-        <li><code>GET /api/benchmark</code> — proxy vers le webhook n8n</li>
-      </ul>
+      <section class="panel">
+        <div class="grid">
+          <input id="q" type="text" placeholder="Mot-clé (formation, métier, organisme...)" />
+          <select id="region"><option value="">Toutes les régions</option></select>
+          <select id="modalite"><option value="">Toutes les modalités</option></select>
+          <select id="financement"><option value="">Tous financements</option></select>
+          <button id="reload">Actualiser</button>
+        <div class="meta">
+          <span id="count">0 résultat</span>
+          <span id="source">Source: non chargée</span>
+      </section>
+      <section id="state" class="loading" style="margin-top:14px">Chargement des offres...</section>
+      <section id="list" class="list" style="margin-top:14px"></section>
+    <script>
+      const state = { raw: [], filtered: [] };
 
-      <h2>Configuration requise</h2>
-      <ul>
-        <li><code>N8N_WEBHOOK_URL</code> (variable d'environnement Vercel)</li>
-      </ul>
+      const els = {
+        q: document.getElementById('q'),
+        region: document.getElementById('region'),
+        modalite: document.getElementById('modalite'),
+        financement: document.getElementById('financement'),
+        reload: document.getElementById('reload'),
+        count: document.getElementById('count'),
+        source: document.getElementById('source'),
+        viewState: document.getElementById('state'),
+        list: document.getElementById('list'),
+      };
 
-      <span class="ok">Index statique minimal pour publication</span>
-    </main>
+      const norm = (v) => (v ?? '').toString().trim();
+      const low = (v) => norm(v).toLowerCase();
+
+      function getPath(obj, paths, fallback='') {
+        for (const p of paths) {
+          if (obj && obj[p] !== undefined && obj[p] !== null && obj[p] !== '') return obj[p];
+        }
+        return fallback;
+      }
+
+      function normalizeOffer(item) {
+        const title = getPath(item, ['title','intitule','nomFormation','formation','name']);
+        const organisme = getPath(item, ['organisme','organism','provider','organisme_nom']);
+        const region = getPath(item, ['region','villeRegion','location_region','localisation']);
+        const modalite = getPath(item, ['modalite','mode','format','modality']);
+        const financement = getPath(item, ['financement','funding','financeur','priseEnCharge']);
+        const prix = getPath(item, ['prix','price','tarif','cout']);
+        const duree = getPath(item, ['duree','duration']);
+        const url = getPath(item, ['url','link','permalink']);
+        return { title, organisme, region, modalite, financement, prix, duree, url, _raw: item };
+      }
+
+      function extractOffers(payload) {
+        const candidates = [payload?.data, payload?.offers, payload?.results, payload];
+        for (const c of candidates) {
+          if (Array.isArray(c)) return c;
+          if (c && Array.isArray(c.items)) return c.items;
+          if (c && Array.isArray(c.offers)) return c.offers;
+          if (c && Array.isArray(c.results)) return c.results;
+        }
+        return [];
+      }
+
+      function setState(kind, msg) {
+        els.viewState.className = kind;
+        els.viewState.textContent = msg;
+        els.viewState.style.display = 'block';
+      }
+
+      function hideState() { els.viewState.style.display = 'none'; }
+
+      function populateFilter(selectEl, values) {
+        const current = selectEl.value;
+        const first = selectEl.options[0].textContent;
+        selectEl.innerHTML = `<option value="">${first}</option>`;
+        values.forEach(v => {
+          const o = document.createElement('option');
+          o.value = v;
+          o.textContent = v;
+          selectEl.appendChild(o);
+        });
+        if ([...selectEl.options].some(o => o.value === current)) selectEl.value = current;
+      }
+
+      function refreshFilterOptions() {
+        const regions = [...new Set(state.raw.map(o => norm(o.region)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+        const modalites = [...new Set(state.raw.map(o => norm(o.modalite)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+        const financements = [...new Set(state.raw.map(o => norm(o.financement)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+        populateFilter(els.region, regions);
+        populateFilter(els.modalite, modalites);
+        populateFilter(els.financement, financements);
+      }
+
+      function applyFilters() {
+        const q = low(els.q.value);
+        const region = low(els.region.value);
+        const modalite = low(els.modalite.value);
+        const financement = low(els.financement.value);
+
+        state.filtered = state.raw.filter(o => {
+          if (q) {
+            const hay = [o.title, o.organisme, o.region, o.modalite, o.financement].map(low).join(' ');
+            if (!hay.includes(q)) return false;
+          }
+          if (region && low(o.region) !== region) return false;
+          if (modalite && low(o.modalite) !== modalite) return false;
+          if (financement && low(o.financement) !== financement) return false;
+          return true;
+        });
+
+        renderList();
+      }
+
+      function renderList() {
+        const n = state.filtered.length;
+        els.count.textContent = `${n} résultat${n>1?'s':''}`;
+
+        if (n === 0) {
+          els.list.innerHTML = '';
+          setState('empty', 'Aucun résultat avec ces filtres.');
+          return;
+        }
+
+        hideState();
+        els.list.innerHTML = state.filtered.map(o => `
+          <article class="card">
+            <h2 class="title">${escapeHtml(o.title || 'Formation sans titre')}</h2>
+            <div class="chips">
+              ${o.region ? `<span class="chip">${escapeHtml(o.region)}</span>` : ''}
+              ${o.modalite ? `<span class="chip">${escapeHtml(o.modalite)}</span>` : ''}
+              ${o.financement ? `<span class="chip">${escapeHtml(o.financement)}</span>` : ''}
+            </div>
+            <div class="row">
+              <div>
+                <div><strong>Organisme :</strong> ${escapeHtml(o.organisme || 'N/A')}</div>
+                <div class="muted">Durée: ${escapeHtml(String(o.duree || 'N/A'))}</div>
+              </div>
+              <div>
+                <div><strong>Prix :</strong> ${escapeHtml(String(o.prix || 'N/A'))}</div>
+                ${o.url ? `<a href="${escapeAttr(o.url)}" target="_blank" rel="noopener">Voir l’offre</a>` : ''}
+              </div>
+            </div>
+          </article>
+        `).join('');
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+
+      function escapeAttr(str) {
+        return escapeHtml(str).replaceAll('"', '&quot;');
+      }
+
+      async function loadOffers() {
+        els.reload.disabled = true;
+        setState('loading', 'Chargement des offres...');
+        els.list.innerHTML = '';
+
+        try {
+          const res = await fetch('/api/benchmark');
+          const payload = await res.json();
+
+          if (!res.ok) {
+            throw new Error(payload?.error || `Erreur HTTP ${res.status}`);
+          }
+
+          const sourceItems = extractOffers(payload);
+          state.raw = sourceItems.map(normalizeOffer).filter(o => o.title || o.organisme);
+
+          refreshFilterOptions();
+          applyFilters();
+
+          const fetchedAt = payload?.fetched_at ? new Date(payload.fetched_at).toLocaleString('fr-FR') : 'n/a';
+          els.source.textContent = `Source: /api/benchmark · ${fetchedAt}`;
+
+          if (state.raw.length === 0) {
+            setState('empty', 'Aucune offre exploitable reçue depuis l’API.');
+          }
+        } catch (err) {
+          setState('error', `Impossible de charger les offres: ${err.message}`);
+          els.source.textContent = 'Source: erreur de chargement';
+        } finally {
+          els.reload.disabled = false;
+        }
+      }
+
+      ['input','change'].forEach(evt => {
+        els.q.addEventListener(evt, applyFilters);
+        els.region.addEventListener(evt, applyFilters);
+        els.modalite.addEventListener(evt, applyFilters);
+        els.financement.addEventListener(evt, applyFilters);
+      });
+      els.reload.addEventListener('click', loadOffers);
+
+      loadOffers();
+    </script>
   </body>
-</html>
