@@ -202,10 +202,6 @@
           const res = await fetch('/api/benchmark');
           const payload = await res.json();
 
-          if (!res.ok) {
-            throw new Error(payload?.error || `Erreur HTTP ${res.status}`);
-          }
-
           const sourceItems = extractOffers(payload);
           state.raw = sourceItems.map(normalizeOffer).filter(o => o.title || o.organisme);
 
@@ -213,10 +209,19 @@
           applyFilters();
 
           const fetchedAt = payload?.fetched_at ? new Date(payload.fetched_at).toLocaleString('fr-FR') : 'n/a';
-          els.source.textContent = `Source: /api/benchmark · ${fetchedAt}`;
+          const statusTxt = payload?.ok === false ? ` · ⚠️ ${payload?.warning || 'source partiellement disponible'}` : '';
+          els.source.textContent = `Source: /api/benchmark · ${fetchedAt}${statusTxt}`;
+
+          if (!res.ok && state.raw.length === 0) {
+            throw new Error(payload?.error || `Erreur HTTP ${res.status}`);
+          }
 
           if (state.raw.length === 0) {
-            setState('empty', 'Aucune offre exploitable reçue depuis l’API.');
+            if (payload?.ok === false && payload?.upstream_status) {
+              setState('error', `Source n8n indisponible (HTTP ${payload.upstream_status}).`);
+            } else {
+              setState('empty', 'Aucune offre exploitable reçue depuis l’API.');
+            }
           }
         } catch (err) {
           setState('error', `Impossible de charger les offres: ${err.message}`);
