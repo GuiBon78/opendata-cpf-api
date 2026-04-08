@@ -12,7 +12,7 @@
       h1{margin:0 0 6px}
       .sub{color:var(--muted);margin:0 0 20px}
       .panel{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px}
-      .grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px}
+      .grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:10px}
       input,select,button{height:40px;border:1px solid var(--bd);border-radius:10px;padding:0 12px;font:inherit;background:#fff}
       button{background:var(--pri);color:#fff;border-color:var(--pri);cursor:pointer;font-weight:600}
       button:disabled{opacity:.6;cursor:not-allowed}
@@ -42,6 +42,7 @@
           <select id="region"><option value="">Toutes les régions</option></select>
           <select id="modalite"><option value="">Toutes les modalités</option></select>
           <select id="financement"><option value="">Tous financements</option></select>
+          <select id="langue"><option value="">Toutes les langues</option></select>
           <button id="reload">Actualiser</button>
         <div class="meta">
           <span id="count">0 résultat</span>
@@ -57,6 +58,7 @@
         region: document.getElementById('region'),
         modalite: document.getElementById('modalite'),
         financement: document.getElementById('financement'),
+        langue: document.getElementById('langue'),
         reload: document.getElementById('reload'),
         count: document.getElementById('count'),
         source: document.getElementById('source'),
@@ -80,10 +82,14 @@
         const region = getPath(item, ['region','villeRegion','location_region','localisation']);
         const modalite = getPath(item, ['modalite','mode','format','modality']);
         const financement = getPath(item, ['financement','funding','financeur','priseEnCharge']);
+        const langueRaw = getPath(item, ['langue','langues','language','languages','idiome','idiomes']);
+        const langues = Array.isArray(langueRaw)
+          ? langueRaw.map(norm).filter(Boolean)
+          : String(langueRaw).split(/[;,/|]/).map(norm).filter(Boolean);
         const prix = getPath(item, ['prix','price','tarif','cout']);
         const duree = getPath(item, ['duree','duration']);
         const url = getPath(item, ['url','link','permalink']);
-        return { title, organisme, region, modalite, financement, prix, duree, url, _raw: item };
+        return { title, organisme, region, modalite, financement, langues, prix, duree, url, _raw: item };
       }
 
       function extractOffers(payload) {
@@ -99,9 +105,9 @@
 
       function getDemoOffers() {
         return [
-          { title: "Développeur web full-stack", organisme: "Open Skills", region: "Île-de-France", modalite: "À distance", financement: "CPF", prix: "2 490 €", duree: "12 semaines", url: "" },
-          { title: "Data analyst avec Python", organisme: "DataCampus", region: "Auvergne-Rhône-Alpes", modalite: "Hybride", financement: "CPF + entreprise", prix: "2 990 €", duree: "10 semaines", url: "" },
-          { title: "Chef de projet digital", organisme: "Academy Pro", region: "Occitanie", modalite: "Présentiel", financement: "CPF", prix: "1 990 €", duree: "8 semaines", url: "" }
+          { title: "Développeur web full-stack", organisme: "Open Skills", region: "Île-de-France", modalite: "À distance", financement: "CPF", langues: ["Français", "Anglais"], prix: "2 490 €", duree: "12 semaines", url: "" },
+          { title: "Data analyst avec Python", organisme: "DataCampus", region: "Auvergne-Rhône-Alpes", modalite: "Hybride", financement: "CPF + entreprise", langues: ["Français"], prix: "2 990 €", duree: "10 semaines", url: "" },
+          { title: "Chef de projet digital", organisme: "Academy Pro", region: "Occitanie", modalite: "Présentiel", financement: "CPF", langues: ["Espagnol", "Italien"], prix: "1 990 €", duree: "8 semaines", url: "" }
         ];
       }
 
@@ -130,9 +136,11 @@
         const regions = [...new Set(state.raw.map(o => norm(o.region)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
         const modalites = [...new Set(state.raw.map(o => norm(o.modalite)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
         const financements = [...new Set(state.raw.map(o => norm(o.financement)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+        const langues = [...new Set(state.raw.flatMap(o => (o.langues || []).map(norm)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
         populateFilter(els.region, regions);
         populateFilter(els.modalite, modalites);
         populateFilter(els.financement, financements);
+        populateFilter(els.langue, langues);
       }
 
       function applyFilters() {
@@ -140,15 +148,17 @@
         const region = low(els.region.value);
         const modalite = low(els.modalite.value);
         const financement = low(els.financement.value);
+        const langue = low(els.langue.value);
 
         state.filtered = state.raw.filter(o => {
           if (q) {
-            const hay = [o.title, o.organisme, o.region, o.modalite, o.financement].map(low).join(' ');
+            const hay = [o.title, o.organisme, o.region, o.modalite, o.financement, (o.langues || []).join(' ')].map(low).join(' ');
             if (!hay.includes(q)) return false;
           }
           if (region && low(o.region) !== region) return false;
           if (modalite && low(o.modalite) !== modalite) return false;
           if (financement && low(o.financement) !== financement) return false;
+          if (langue && !(o.langues || []).some(l => low(l) === langue)) return false;
           return true;
         });
 
@@ -173,6 +183,7 @@
               ${o.region ? `<span class="chip">${escapeHtml(o.region)}</span>` : ''}
               ${o.modalite ? `<span class="chip">${escapeHtml(o.modalite)}</span>` : ''}
               ${o.financement ? `<span class="chip">${escapeHtml(o.financement)}</span>` : ''}
+              ${(o.langues || []).map(l => `<span class="chip">${escapeHtml(l)}</span>`).join('')}
             </div>
             <div class="row">
               <div>
@@ -247,6 +258,7 @@
         els.region.addEventListener(evt, applyFilters);
         els.modalite.addEventListener(evt, applyFilters);
         els.financement.addEventListener(evt, applyFilters);
+        els.langue.addEventListener(evt, applyFilters);
       });
       els.reload.addEventListener('click', loadOffers);
 
