@@ -28,9 +28,16 @@ export default async function handler(req, res) {
     }
 
     if (!upstream.ok) {
-      return res.status(502).json({
-        error: "n8n webhook failed",
-        status: upstream.status,
+      const hint =
+        upstream.status === 404
+          ? "Webhook introuvable (404) : vérifiez N8N_WEBHOOK_URL."
+          : "Le webhook n8n a répondu avec un statut d'erreur.";
+      return res.status(200).json({
+        ok: false,
+        warning: "n8n webhook failed",
+        upstream_status: upstream.status,
+        hint,
+        fetched_at: new Date().toISOString(),
         data
       });
     }
