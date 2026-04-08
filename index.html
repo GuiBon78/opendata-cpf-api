@@ -97,6 +97,14 @@
         return [];
       }
 
+      function getDemoOffers() {
+        return [
+          { title: "Développeur web full-stack", organisme: "Open Skills", region: "Île-de-France", modalite: "À distance", financement: "CPF", prix: "2 490 €", duree: "12 semaines", url: "" },
+          { title: "Data analyst avec Python", organisme: "DataCampus", region: "Auvergne-Rhône-Alpes", modalite: "Hybride", financement: "CPF + entreprise", prix: "2 990 €", duree: "10 semaines", url: "" },
+          { title: "Chef de projet digital", organisme: "Academy Pro", region: "Occitanie", modalite: "Présentiel", financement: "CPF", prix: "1 990 €", duree: "8 semaines", url: "" }
+        ];
+      }
+
       function setState(kind, msg) {
         els.viewState.className = kind;
         els.viewState.textContent = msg;
@@ -209,7 +217,7 @@
           applyFilters();
 
           const fetchedAt = payload?.fetched_at ? new Date(payload.fetched_at).toLocaleString('fr-FR') : 'n/a';
-          const statusTxt = payload?.ok === false ? ` · ⚠️ ${payload?.warning || 'source partiellement disponible'}` : '';
+          const statusTxt = payload?.ok === false ? ` · ⚠️ ${payload?.hint || payload?.warning || 'source partiellement disponible'}` : '';
           els.source.textContent = `Source: /api/benchmark · ${fetchedAt}${statusTxt}`;
 
           if (!res.ok && state.raw.length === 0) {
@@ -218,7 +226,10 @@
 
           if (state.raw.length === 0) {
             if (payload?.ok === false && payload?.upstream_status) {
-              setState('error', `Source n8n indisponible (HTTP ${payload.upstream_status}).`);
+              state.raw = getDemoOffers();
+              refreshFilterOptions();
+              applyFilters();
+              setState('loading', `Source n8n indisponible (HTTP ${payload.upstream_status}) — affichage en mode démo.`);
             } else {
               setState('empty', 'Aucune offre exploitable reçue depuis l’API.');
             }
